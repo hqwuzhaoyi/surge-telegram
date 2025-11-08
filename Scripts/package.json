@@ -1,0 +1,16 @@
+{
+  "name": "surge-telegram",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Telegram speed test scripts for Surge",
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "devDependencies": {
+    "vitest": "^1.2.0",
+    "@vitest/ui": "^1.2.0",
+    "@vitest/coverage-v8": "^1.2.0"
+  }
+}
