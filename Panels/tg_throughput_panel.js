@@ -24,8 +24,12 @@
 // [Panel]
 // TG 速度 = script-name=tg-speed,update-interval=600
 
-// ---------- 基础工具 ----------
+// ---------- 常量定义 ----------
 const LOG_KEY = "tg_throughput_log";
+const MAX_LOG_ENTRIES = 200;  // 最大日志条数
+const MAX_ARG_LENGTH = 2000;   // 参数字符串最大长度
+
+// ---------- 基础工具 ----------
 function slog(...a) {
   const line =
     `[${new Date().toLocaleTimeString()}] ` +
@@ -33,21 +37,26 @@ function slog(...a) {
       .map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x)))
       .join(" ");
   try {
-    const arr = JSON.parse($persistentStore.read(LOG_KEY) || "[]");
-    arr.push(line);
-    while (arr.length > 200) arr.shift();
-    $persistentStore.write(JSON.stringify(arr), LOG_KEY);
+    if (typeof $persistentStore !== 'undefined') {
+      const arr = JSON.parse($persistentStore.read(LOG_KEY) || "[]");
+      arr.push(line);
+      while (arr.length > MAX_LOG_ENTRIES) arr.shift();
+      $persistentStore.write(JSON.stringify(arr), LOG_KEY);
+    }
   } catch (_) {}
   try {
     console.log(line);
   } catch (_) {}
 }
 
-slog("=== TG Throughput Panel Start ===");
+// 只在 Surge 环境中记录启动日志
+if (typeof $done !== 'undefined') {
+  slog("=== TG Throughput Panel Start ===");
+}
 
 // ---------- 解析参数 ----------
-const ARGSTR = typeof $argument === "string" ? $argument : "";
-const ARG = Object.fromEntries(
+const ARGSTR = typeof $argument !== 'undefined' ? (typeof $argument === "string" ? $argument : "") : "";
+const ARG = ARGSTR ? Object.fromEntries(
   ARGSTR.split(";")
     .map((s) => s.trim())
     .filter(Boolean)
@@ -57,7 +66,7 @@ const ARG = Object.fromEntries(
         ? [kv.slice(0, i).trim(), kv.slice(i + 1).trim()]
         : [kv.trim(), ""];
     }),
-);
+) : {};
 
 const SPLIT = (v) =>
   (v || "")
@@ -85,18 +94,21 @@ const TOPK = Math.max(1, parseInt(ARG.topk || "3", 10));
 const CONCURRENT = Math.max(1, parseInt(ARG.concurrent || "3", 10));
 const MAX_WAIT_MS = Math.max(10000, parseInt(ARG.max_wait_ms || "60000", 10));
 
-slog("[Config] Targets:", TARGETS);
-slog("[Config] Bytes per request:", (BYTES / 1024 / 1024).toFixed(2) + "MB");
-slog("[Config] Repeat count:", REPEAT_COUNT);
-slog("[Config] Drop extremes:", DROP_EXTREMES);
-slog(
-  "[Config] Total per target:",
-  ((BYTES * REPEAT_COUNT) / 1024 / 1024).toFixed(2) + "MB",
-);
-slog("[Config] Timeout:", TIMEOUT + "ms");
-slog("[Config] TopK:", TOPK);
-slog("[Config] Concurrent:", CONCURRENT);
-slog("[Config] Max Wait:", MAX_WAIT_MS + "ms");
+// 只在 Surge 环境中记录配置
+if (typeof $done !== 'undefined') {
+  slog("[Config] Targets:", TARGETS);
+  slog("[Config] Bytes per request:", (BYTES / 1024 / 1024).toFixed(2) + "MB");
+  slog("[Config] Repeat count:", REPEAT_COUNT);
+  slog("[Config] Drop extremes:", DROP_EXTREMES);
+  slog(
+    "[Config] Total per target:",
+    ((BYTES * REPEAT_COUNT) / 1024 / 1024).toFixed(2) + "MB",
+  );
+  slog("[Config] Timeout:", TIMEOUT + "ms");
+  slog("[Config] TopK:", TOPK);
+  slog("[Config] Concurrent:", CONCURRENT);
+  slog("[Config] Max Wait:", MAX_WAIT_MS + "ms");
+}
 
 function hostOf(u) {
   try {
@@ -302,6 +314,8 @@ async function testPolicy(policy) {
 }
 
 // ---------- 主流程 ----------
+// 只在 Surge 环境中执行
+if (typeof $done !== 'undefined' && typeof $httpAPI !== 'undefined') {
 (async () => {
   slog("=== Main Start ===");
 
@@ -434,3 +448,69 @@ async function testPolicy(policy) {
     "icon-color": "#FF9500",
   });
 });
+} // End of Surge environment check
+
+// ==================== 导出（供测试使用）====================
+if (typeof module !== 'undefined' && module.exports) {
+  // 创建参数解析函数（纯函数版本）
+  function parseArguments(argStr) {
+    // 参数校验：防止超长输入
+    if (typeof argStr !== 'string' || argStr.length > MAX_ARG_LENGTH) {
+      // 返回默认配置
+      return {
+        TARGETS: [
+          "https://telegram.org/img/SiteAndroid.jpg",
+          "https://telegram.org/img/SiteiOs.jpg",
+        ],
+        BYTES: 1048576,
+        TIMEOUT: 8000,
+        REPEAT_COUNT: 5,
+        DROP_EXTREMES: true,
+        TOPK: 3,
+        CONCURRENT: 3,
+        MAX_WAIT_MS: 60000
+      };
+    }
+
+    const SPLIT = (v) =>
+      (v || "")
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    const ARG = Object.fromEntries(
+      argStr.split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((kv) => {
+          const i = kv.indexOf("=");
+          return i > 0
+            ? [kv.slice(0, i).trim(), kv.slice(i + 1).trim()]
+            : [kv.trim(), ""];
+        }),
+    );
+
+    return {
+      TARGETS: SPLIT(ARG.targets).length
+        ? SPLIT(ARG.targets)
+        : [
+            "https://telegram.org/img/SiteAndroid.jpg",
+            "https://telegram.org/img/SiteiOs.jpg",
+          ],
+      BYTES: Math.max(32 * 1024, parseInt(ARG.bytes || "1048576", 10)),
+      TIMEOUT: Math.max(2000, parseInt(ARG.per_target_timeout_ms || "8000", 10)),
+      REPEAT_COUNT: Math.max(1, parseInt(ARG.repeat || "5", 10)),
+      DROP_EXTREMES: ARG.drop_extremes !== "false",
+      TOPK: Math.max(1, parseInt(ARG.topk || "3", 10)),
+      CONCURRENT: Math.max(1, parseInt(ARG.concurrent || "3", 10)),
+      MAX_WAIT_MS: Math.max(10000, parseInt(ARG.max_wait_ms || "60000", 10))
+    };
+  }
+
+  module.exports = {
+    parseArguments,
+    hostOf,
+    // Note: httpGetRange, testUrlRepeated, testPolicy 依赖 Surge 全局变量，
+    // 需要在测试中 mock 这些全局变量后才能使用
+  };
+}

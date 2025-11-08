@@ -9,9 +9,6 @@ const mockPersistentStore = {
   write: vi.fn((value, key) => mockStore.set(key, value))
 };
 
-// 模拟日志数组
-let logArray = [];
-
 // 模拟 HTTP Client
 const mockHttpClient = {
   get: vi.fn()
@@ -23,7 +20,7 @@ const mockHttpAPI = vi.fn();
 // 模拟 $done
 const mockDone = vi.fn();
 
-// 设置全局环境
+// 设置全局环境（必须在导入脚本之前设置）
 global.$persistentStore = mockPersistentStore;
 global.$httpClient = mockHttpClient;
 global.$httpAPI = mockHttpAPI;
@@ -31,7 +28,11 @@ global.$done = mockDone;
 global.$argument = '';
 global.console = { log: vi.fn() };
 
-// ==================== 辅助函数（从脚本中提取） ====================
+// ==================== 导入真实脚本函数 ====================
+
+const { parseArguments, hostOf } = require('../Panels/tg_throughput_panel.js');
+
+// ==================== 本地辅助函数（用于测试，因为脚本中的函数依赖 Surge 全局变量） ====================
 
 const LOG_KEY = "tg_throughput_log";
 function slog(...a) {
@@ -49,51 +50,6 @@ function slog(...a) {
   try {
     console.log(line);
   } catch (_) {}
-}
-
-function hostOf(u) {
-  try {
-    return new URL(u).host;
-  } catch {
-    return u;
-  }
-}
-
-// 解析参数
-function parseArguments(argStr) {
-  const SPLIT = (v) =>
-    (v || "")
-      .split("|")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-  const ARG = Object.fromEntries(
-    argStr.split(";")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((kv) => {
-        const i = kv.indexOf("=");
-        return i > 0
-          ? [kv.slice(0, i).trim(), kv.slice(i + 1).trim()]
-          : [kv.trim(), ""];
-      }),
-  );
-
-  return {
-    TARGETS: SPLIT(ARG.targets).length
-      ? SPLIT(ARG.targets)
-      : [
-          "https://telegram.org/img/SiteAndroid.jpg",
-          "https://telegram.org/img/SiteiOs.jpg",
-        ],
-    BYTES: Math.max(32 * 1024, parseInt(ARG.bytes || "1048576", 10)),
-    TIMEOUT: Math.max(2000, parseInt(ARG.per_target_timeout_ms || "8000", 10)),
-    REPEAT_COUNT: Math.max(1, parseInt(ARG.repeat || "5", 10)),
-    DROP_EXTREMES: ARG.drop_extremes !== "false",
-    TOPK: Math.max(1, parseInt(ARG.topk || "3", 10)),
-    CONCURRENT: Math.max(1, parseInt(ARG.concurrent || "3", 10)),
-    MAX_WAIT_MS: Math.max(10000, parseInt(ARG.max_wait_ms || "60000", 10))
-  };
 }
 
 // HTTP Range 请求

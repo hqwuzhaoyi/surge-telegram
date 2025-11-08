@@ -20,10 +20,14 @@
 // [Panel]
 // TG 延迟 = script-name=tg-latency,update-interval=5
 
-// ---------- 基础工具 ----------
+// ---------- 常量定义 ----------
 const LOG_KEY = "tg_latency_log";
 const PANEL_KEY = "tg_latency_panel_cache";
+const MAX_LOG_ENTRIES = 200;    // 最大日志条数
+const CACHE_TTL_MS = 5 * 60 * 1000;  // 缓存有效期: 5 分钟
+const MAX_ARG_LENGTH = 2000;     // 参数字符串最大长度
 
+// ---------- 基础工具 ----------
 function slog(...a) {
   const line =
     `[${new Date().toLocaleTimeString()}] ` +
@@ -31,10 +35,12 @@ function slog(...a) {
       .map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x)))
       .join(" ");
   try {
-    const arr = JSON.parse($persistentStore.read(LOG_KEY) || "[]");
-    arr.push(line);
-    while (arr.length > 200) arr.shift();
-    $persistentStore.write(JSON.stringify(arr), LOG_KEY);
+    if (typeof $persistentStore !== 'undefined') {
+      const arr = JSON.parse($persistentStore.read(LOG_KEY) || "[]");
+      arr.push(line);
+      while (arr.length > MAX_LOG_ENTRIES) arr.shift();
+      $persistentStore.write(JSON.stringify(arr), LOG_KEY);
+    }
   } catch (_) {}
   try {
     console.log(line);
@@ -57,8 +63,8 @@ function readPanelCache() {
     const raw = $persistentStore.read(PANEL_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    // 缓存 5 分钟内有效
-    if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+    // 检查缓存是否过期
+    if (Date.now() - data.timestamp < CACHE_TTL_MS) {
       return data;
     }
   } catch (e) {
@@ -67,10 +73,13 @@ function readPanelCache() {
   return null;
 }
 
-slog("=== TG Latency Panel Start ===");
+// Only log in Surge environment
+if (typeof $done !== 'undefined') {
+  slog("=== TG Latency Panel Start ===");
+}
 
 // ---------- 解析参数 ----------
-const ARGSTR = typeof $argument === "string" ? $argument : "";
+const ARGSTR = typeof $argument !== 'undefined' ? (typeof $argument === "string" ? $argument : "") : "";
 slog("[Raw Argument]", ARGSTR);
 
 const ARG = Object.fromEntries(
@@ -108,11 +117,14 @@ const TOPK = Math.max(1, parseInt(ARG.topk || "5", 10));
 const CONCURRENT = Math.max(1, parseInt(ARG.concurrent || "5", 10));
 const MAX_WAIT_MS = Math.max(10000, parseInt(ARG.max_wait_ms || "60000", 10));
 
-slog("[Config] Targets:", TARGETS);
-slog("[Config] Timeout:", TIMEOUT + "ms");
-slog("[Config] TopK:", TOPK);
-slog("[Config] Concurrent:", CONCURRENT);
-slog("[Config] Max Wait:", MAX_WAIT_MS + "ms");
+// Only log config in Surge environment
+if (typeof $done !== 'undefined') {
+  slog("[Config] Targets:", TARGETS);
+  slog("[Config] Timeout:", TIMEOUT + "ms");
+  slog("[Config] TopK:", TOPK);
+  slog("[Config] Concurrent:", CONCURRENT);
+  slog("[Config] Max Wait:", MAX_WAIT_MS + "ms");
+}
 
 function hostOf(u) {
   try {
@@ -250,8 +262,10 @@ function formatDisplay(results, total, completed, stopped) {
 }
 
 // ---------- 主流程 ----------
-(async () => {
-  slog("=== Main Start ===");
+// Only execute in Surge environment
+if (typeof $done !== 'undefined' && typeof $httpAPI !== 'undefined') {
+  (async () => {
+    slog("=== Main Start ===");
 
   // 先检查缓存，如果有有效缓存且不是主动触发，直接返回
   const cached = readPanelCache();
@@ -382,12 +396,72 @@ function formatDisplay(results, total, completed, stopped) {
     icon: "paperplane.fill",
     "icon-color": "#37AEE2",
   });
-})().catch((e) => {
-  slog("Fatal error:", String(e.stack || e));
-  $done({
-    title: "TG 延迟测速（异常）",
-    content: String((e && e.stack) || e),
-    icon: "exclamationmark.triangle.fill",
-    "icon-color": "#FF9500",
+  })().catch((e) => {
+    slog("Fatal error:", String(e.stack || e));
+    $done({
+      title: "TG 延迟测速（异常）",
+      content: String((e && e.stack) || e),
+      icon: "exclamationmark.triangle.fill",
+      "icon-color": "#FF9500",
+    });
   });
-});
+} // End of Surge environment check
+
+// ---------- Module Exports (for testing) ----------
+if (typeof module !== 'undefined' && module.exports) {
+  // Pure function version for testing (without Surge globals)
+  function parseArguments(argStr) {
+    // 参数校验：防止超长输入
+    if (typeof argStr !== 'string' || argStr.length > MAX_ARG_LENGTH) {
+      // 返回默认配置
+      return {
+        TARGETS: [
+          "https://telegram.org/img/t_logo.png",
+          "https://core.telegram.org/favicon.ico",
+        ],
+        TIMEOUT: 5000,
+        TOPK: 5,
+        CONCURRENT: 5,
+        MAX_WAIT_MS: 60000
+      };
+    }
+
+    const SPLIT = (v) =>
+      (v || "")
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    const ARG = Object.fromEntries(
+      argStr.split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((kv) => {
+          const i = kv.indexOf("=");
+          return i > 0
+            ? [kv.slice(0, i).trim(), kv.slice(i + 1).trim()]
+            : [kv.trim(), ""];
+        }),
+    );
+
+    return {
+      TARGETS: SPLIT(ARG.targets).length
+        ? SPLIT(ARG.targets)
+        : [
+            "https://telegram.org/img/t_logo.png",
+            "https://core.telegram.org/favicon.ico",
+          ],
+      TIMEOUT: Math.max(1000, parseInt(ARG.per_target_timeout_ms || "5000", 10)),
+      TOPK: Math.max(1, parseInt(ARG.topk || "5", 10)),
+      CONCURRENT: Math.max(1, parseInt(ARG.concurrent || "5", 10)),
+      MAX_WAIT_MS: Math.max(10000, parseInt(ARG.max_wait_ms || "60000", 10))
+    };
+  }
+
+  module.exports = {
+    parseArguments,
+    hostOf,
+    // Note: Other functions depend on Surge globals ($httpClient, $httpAPI, $persistentStore)
+    // and would need mocks to test properly
+  };
+}
