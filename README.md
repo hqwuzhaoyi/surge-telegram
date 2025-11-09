@@ -19,7 +19,7 @@ Surge 面板脚本，用于测试所有可用节点的 Telegram 性能，包括�
 在 Surge 中添加模块：
 
 ```
-https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Modules/Telegram-Speed-Dual.sgmodule
+https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Modules/Telegram-Speed-Dual.sgmodule
 ```
 
 ### 方法二：手动配置
@@ -29,12 +29,12 @@ https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Modules/Tele
 ```ini
 [Script]
 # 延迟测速
-tg-latency = type=generic,control-api=true,timeout=90,script-path=https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Panels/tg_latency_panel.js,argument=topk=5; concurrent=5; per_target_timeout_ms=5000; max_wait_ms=60000
-tg-latency-debug = type=generic,timeout=5,script-path=https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Panels/tg_debug_panel.js
+tg-latency = type=generic,control-api=true,timeout=90,script-path=https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Panels/tg_latency_panel.js,argument=topk=5; concurrent=5; per_target_timeout_ms=5000; max_wait_ms=60000
+tg-latency-debug = type=generic,timeout=5,script-path=https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Panels/tg_debug_panel.js
 
 # 吞吐测速
-tg-throughput = type=generic,control-api=true,timeout=120,script-path=https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Panels/tg_throughput_panel.js,argument=topk=3; concurrent=3; bytes=1048576; repeat=5; drop_extremes=true
-tg-throughput-debug = type=generic,timeout=5,script-path=https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Panels/tg_throughput_debug_panel.js
+tg-throughput = type=generic,control-api=true,timeout=120,script-path=https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Panels/tg_throughput_panel.js,argument=topk=3; concurrent=3; bytes=1048576; repeat=5; drop_extremes=true
+tg-throughput-debug = type=generic,timeout=5,script-path=https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Panels/tg_throughput_debug_panel.js
 
 [Panel]
 TG 延迟 = script-name=tg-latency,update-interval=5

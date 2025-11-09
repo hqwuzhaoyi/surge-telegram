@@ -30,14 +30,14 @@ surge-telegram/
 ### 方法一：使用模块（推荐）
 
 ```
-https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Modules/Telegram-Speed-Dual.sgmodule
+https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Modules/Telegram-Speed-Dual.sgmodule
 ```
 
 ### 方法二：直接引用脚本
 
 ```ini
 [Script]
-tg-latency = type=generic,control-api=true,timeout=90,script-path=https://raw.githubusercontent.com/YOUR_USERNAME/surge-telegram/main/Panels/tg_latency_panel.js,argument=topk=5; concurrent=5
+tg-latency = type=generic,control-api=true,timeout=90,script-path=https://raw.githubusercontent.com/hqwuzhaoyi/surge-telegram/main/Panels/tg_latency_panel.js,argument=topk=5; concurrent=5
 ```
 
 ## 🏗️ 设计原则
